@@ -78,8 +78,6 @@ def gmail_webhook():
     decoded_bytes = base64.b64decode(encoded_message)
     decoded_message = decoded_bytes.decode("utf-8")  # Convert to string
 
-    print("Decoded Message:", decoded_message)
-
     # Call fetch_latest_email with the historyId from the decoded message
     message_data = json.loads(decoded_message)
     history_id = message_data.get("historyId")
