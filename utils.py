@@ -53,11 +53,20 @@ def save_processed_id(msg_id):
     with open(PROCESSED_IDS_FILE, "wb") as f:
         pickle.dump(processed_ids, f)
 
-def parse_email_content(subject, body):
-    # body = "BTCUSDT has reversed trend to NEUTRAL from LONG on 4H timeframe!"
-    symbol = "BTCUSDT"
-    side = "BUY"
+def parse_email_content(body):
+    words = body.split()
+    symbol = words[0]
+    side_word = words[words.index("to") + 1].upper()
     
+    if side_word == "NEUTRAL":
+        side = "CLOSE"
+    elif side_word == "SHORT":
+        side = "SELL"
+    elif side_word == "LONG":
+        side = "BUY"
+    else:
+        side = None
+    logging.info(f"---------------- After parsing Symbol: {symbol}, Side: {side}")
     return symbol, side
 
 def fetch_latest_email(history_id=None):
@@ -110,12 +119,9 @@ def create_futures_order(symbol, side):
             quantity=QUANTITY,
         )
         logging.info(f"{side.capitalize()} order created: {response}")
-        if side.upper() == 'BUY':
-            return float(hmac_client.ticker_price(symbol=symbol)['price'])
     except ClientError as e:
         logging.error(f"Error creating {side.lower()} order: {e.error_message}")
 
-import threading
 
 def place_trade(symbol, side):
     # Change leverage
@@ -123,11 +129,15 @@ def place_trade(symbol, side):
         symbol=symbol, leverage=20, recvWindow=6000
     )
 
-    if side.upper() == 'BUY':
-        buy_price = create_futures_order(symbol, side)
-    elif side.upper() == 'SELL':
+    if side.upper() == 'CLOSE':
+        try:
+            positions = hmac_client.get_position_risk(symbol=symbol)
+            for position in positions:
+                if float(position['positionAmt']) != 0:
+                    close_side = 'SELL' if float(position['positionAmt']) > 0 else 'BUY'
+                    create_futures_order(symbol, close_side)
+                    logging.info(f"Closed position for {symbol} with {close_side} order.")
+        except ClientError as e:
+            logging.error(f"Error closing position for {symbol}: {e.error_message}")
+    else: # For BUY or SELL orders, execute directly
         create_futures_order(symbol, side)
-        buy_price = None
-    else:
-        logging.error("Invalid side provided. Must be 'BUY' or 'SELL'.")
-        return
