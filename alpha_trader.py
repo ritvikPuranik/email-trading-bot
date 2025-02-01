@@ -1,3 +1,12 @@
+'''
+Description: This script sets up a Flask server that listens for Gmail notifications using a webhook. 
+It parses the email and places a trade based on the email content. 
+The script also includes a function to set up a Gmail watch request and a webhook to receive notifications. 
+The script uses the Google API client library to interact with Gmail and the Binance API to place trades. 
+The script also includes OAuth flow for user authentication and a function to fetch the latest email using the Gmail API. The script is designed to be run as a standalone server using ngrok.
+''' 
+
+# 
 import os
 import pickle
 import flask
@@ -8,7 +17,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
-from utils import fetch_latest_email, get_credentials
+from utils import fetch_latest_email, get_credentials, parse_email_content, place_trade
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -70,7 +79,6 @@ def set_watch():
 # Webhook for receiving notifications
 @app.route("/gmail-webhook", methods=["POST"])
 def gmail_webhook():
-    print("Webhook received:")
     data = request.json
     encoded_message = data["message"]["data"]
 
@@ -82,9 +90,15 @@ def gmail_webhook():
     message_data = json.loads(decoded_message)
     history_id = message_data.get("historyId")
     if history_id:
-        fetch_latest_email(history_id)
+        subject, body = fetch_latest_email(history_id)
+        # symbol, side = parse_email_content(subject, body)
+        # # Handle the symbol and side as needed
+        # print(f"Symbol: {symbol}, Side: {side}")
+        # if symbol and side:
+        #     place_trade(symbol, side)
 
-    return "", 200  # Acknowledge receipt
+    # Acknowledge the subscription
+    return json.dumps({"status": "success"}), 201  # Acknowledge receipt
 
 @app.route("/")
 def home():
