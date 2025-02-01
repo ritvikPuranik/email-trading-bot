@@ -66,7 +66,7 @@ def set_watch():
     service = build("gmail", "v1", credentials=creds)
     request_body = {
         "labelIds": ["INBOX"],
-        "topicName": "projects/beaming-ring-449419-b3/topics/Check-Email",  # Replace with your Pub/Sub topic
+        "topicName": os.getenv("GOOGLE_TOPIC"),
     }
     try:
         response = service.users().watch(userId="me", body=request_body).execute()
