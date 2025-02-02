@@ -2,7 +2,7 @@ import time
 import os
 from imbox import Imbox
 import logging
-import requests
+from utils import parse_email_content, place_trade
 from dotenv import load_dotenv
 import ssl
 
@@ -14,18 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 
-def call_trade_endpoint(email_body):
+def parse_email_and_trade(email_body):
     logger.info(f'calling trade endpoint with email body: {email_body}')
-    data = {'email':email_body}
-    url ='http://localhost:3000/trade'
-    response = requests.post(url, json=data)
-    print(response.json())
+    symbol, to_position, from_position = parse_email_content(email_body)
+    if symbol and to_position and from_position:
+        place_trade(symbol, to_position, from_position)
     print('called tarde and receved response') 
 
 def monitor_emails(
     username: str,
     password: str,
-    sender: str,
+    senders: list[str],
     interval: int = 5,
     subject: str = 'Mango Research Alerts'
 ) -> None:
@@ -35,11 +34,11 @@ def monitor_emails(
     Args:
         username: Gmail username
         password: Gmail app password
-        sender: Email address to monitor
+        senders: List of email addresses to monitor
         interval: Sleep interval between checks in seconds
         subject: Subject line to filter
     """
-    logger.info(f"Starting email monitor for messages from: {sender}")
+    logger.info(f"Starting email monitor for messages from: {senders}")
     
     # Create unverified SSL context
     ssl_context = ssl.create_default_context()
@@ -52,23 +51,24 @@ def monitor_emails(
                     username=username,
                     password=password,
                     ssl=True,
-                    ssl_context=ssl_context,  # Use the custom SSL context
+                    ssl_context=ssl_context,
                     starttls=False) as imbox:
                 
-                # Check for new messages
-                inbox_messages_from = imbox.messages(
-                    sent_from=sender, 
-                    subject=subject, 
-                    unread=True
-                )
-                
-                # Process latest message if any
-                for uid, message in inbox_messages_from:
-                    email_body = message.body['plain'][0]
-                    logger.info(f"New message received: {email_body}")
-                    call_trade_endpoint(email_body)
-                    imbox.mark_seen(uid)
-                    break  # Only process the latest message
+                # Check for new messages from any of the senders
+                for sender in senders:
+                    inbox_messages_from = imbox.messages(
+                        sent_from=sender, 
+                        subject=subject, 
+                        unread=True
+                    )
+                    
+                    # Process latest message if any
+                    for uid, message in inbox_messages_from:
+                        email_body = message.body['plain'][0]
+                        logger.info(f"New message received from {sender}: {email_body}")
+                        parse_email_and_trade(email_body)
+                        imbox.mark_seen(uid)
+                        break  # Only process the latest message from this sender
                 
             # Sleep before next check
             logger.debug(f"Waiting for {interval} seconds")
@@ -80,15 +80,15 @@ def monitor_emails(
 
 if __name__ == "__main__":
     # Email credentials and settings
-    USERNAME = "cryptotradrrs@gmail.com"
+    USERNAME = os.getenv("EMAIL_USERNAME")
     PASSWORD = os.getenv("APP_PASSWORD")
-    SENDER = "trend-alert@mangoresearch.co"
-    CHECK_INTERVAL = 5  # seconds
+    SENDERS = os.getenv("EMAIL_SENDERS").split(",")
+    CHECK_INTERVAL = int(os.getenv("POLLING_INTERVAL"))
     
     # Start monitoring
     monitor_emails(
         username=USERNAME,
         password=PASSWORD,
-        sender=SENDER,
+        senders=SENDERS,
         interval=CHECK_INTERVAL
     )
