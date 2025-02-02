@@ -1,5 +1,6 @@
 .env
 token.pkl
 processed_ids.pkl
+credentials.json
 __pycache__/
 .DS_Store

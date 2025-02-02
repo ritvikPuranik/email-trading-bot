@@ -70,6 +70,7 @@ def parse_email_content(body):
     return symbol, side
 
 def fetch_latest_email(history_id=None):
+    logging.info("Fetching latest email")
     creds = get_credentials()
     if not creds:
         logging.info("No valid credentials found.")
@@ -85,23 +86,39 @@ def fetch_latest_email(history_id=None):
                 if msg_id in processed_ids:
                     continue  # Skip already processed messages
 
-                message = service.users().messages().get(userId="me", id=msg_id).execute()
+                message = service.users().messages().get(userId="me", id=msg_id, format='full').execute()
                 
                 headers = message["payload"]["headers"]
-                subject = next((header["value"] for header in headers if header["name"] == "Subject"), None)
+                subject = next((header["value"] for header in headers if header["name"].lower() == "subject"), None)
                 
                 if subject == "Mango Research Alerts":
-                    sender = next(header["value"] for header in headers if header["name"] == "From")
+                    sender = next(header["value"] for header in headers if header["name"].lower() == "from")
                     body = ""
-                    if "parts" in message["payload"]:
-                        for part in message["payload"]["parts"]:
-                            if part["mimeType"] == "text/plain":
-                                body = base64.urlsafe_b64decode(part["body"]["data"]).decode("utf-8")
-                                break
+                    
+                    # Handle message payload
+                    payload = message['payload']
+                    if 'body' in payload and 'data' in payload['body']:
+                        # Simple message
+                        body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
+                    elif 'parts' in payload:
+                        # Multipart message
+                        for part in payload['parts']:
+                            if part['mimeType'] == 'text/plain':
+                                if 'data' in part['body']:
+                                    body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                                elif 'attachmentId' in part['body']:
+                                    attachment = service.users().messages().attachments().get(
+                                        userId='me',
+                                        messageId=msg_id,
+                                        id=part['body']['attachmentId']
+                                    ).execute()
+                                    body = base64.urlsafe_b64decode(attachment['data']).decode('utf-8')
                     
                     logging.info(f"Sender: {sender}")
                     logging.info(f"Subject: {subject}")
-                    logging.info(f"Body: {body}")
+                    logging.info(f"Body length: {len(body)}")
+                    logging.info(f"Body content: {body}")
+                    
                     save_processed_id(msg_id)
                     return subject, body
     except HttpError as error:

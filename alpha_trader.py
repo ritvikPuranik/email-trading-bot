@@ -29,7 +29,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
-CREDENTIALS_FILE = os.getenv("CREDENTIALS_FILE")
+CREDENTIALS_FILE = "credentials.json"
 TOKEN_FILE = os.getenv("TOKEN_FILE")
 
 # OAuth flow
@@ -85,17 +85,18 @@ def gmail_webhook():
     # Decode Base64
     decoded_bytes = base64.b64decode(encoded_message)
     decoded_message = decoded_bytes.decode("utf-8")  # Convert to string
+    print(f"Decoded message: {decoded_message}")
 
     # Call fetch_latest_email with the historyId from the decoded message
     message_data = json.loads(decoded_message)
     history_id = message_data.get("historyId")
     if history_id:
         _, body = fetch_latest_email(history_id)
-        if body:
-            symbol, side = parse_email_content(body)
+        # if body:
+        #     symbol, side = parse_email_content(body)
 
-            if symbol and side:
-                place_trade(symbol, side)
+        #     if symbol and side:
+        #         place_trade(symbol, side)
 
     # Acknowledge the subscription
     return json.dumps({"status": "success"}), 201  # Acknowledge receipt
