@@ -6,3 +6,5 @@ google-api-python-client
 python-dotenv
 binance-futures
 gunicorn
+python-binance
+requests
