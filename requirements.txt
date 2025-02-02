@@ -8,3 +8,4 @@ pickle
 json
 googleapiclient
 binance-futures
+gunicorn
