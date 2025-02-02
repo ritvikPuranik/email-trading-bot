@@ -57,7 +57,7 @@ def save_processed_id(msg_id):
 
 def parse_email_content(body):
     words = body.split()
-    symbol = words[0]
+    symbol = words[1]
     to_position = words[words.index("to") + 1].upper()
     from_position = words[words.index("from") + 1].upper()
 
@@ -124,6 +124,7 @@ def fetch_latest_email(history_id=None):
 
 def request_order_on_binance(symbol, signal, scale):
     try:
+        logging.info(f"Creating {side.lower()} order for {symbol}, scale: {scale}")
         response = hmac_client.new_order(
             symbol=symbol,
             side=signal.upper(),
