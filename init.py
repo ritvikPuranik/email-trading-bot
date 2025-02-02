@@ -5,7 +5,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 def start_flask_server():
-    subprocess.run(["gunicorn", "-w", "2", "-b", "0.0.0.0:3000", "alpha_trader:app"])
+    subprocess.run(["gunicorn", "-w", "1","--threads", "1", "-b", "0.0.0.0:3000", "alpha_trader:app"])
     # subprocess.run(["python3", "alpha_trader.py"]) # for the development server
 
 def start_position_tracker():
