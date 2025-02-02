@@ -124,7 +124,7 @@ def fetch_latest_email(history_id=None):
 
 def request_order_on_binance(symbol, signal, scale):
     try:
-        logging.info(f"Creating {side.lower()} order for {symbol}, scale: {scale}")
+        # logging.info(f"Creating {side.lower()} order for {symbol}, scale: {scale}")
         response = hmac_client.new_order(
             symbol=symbol,
             side=signal.upper(),
@@ -156,8 +156,9 @@ def check_and_request_order(symbol: str, signal: str) -> None:
             return
 
         position_amount = float(position['positionAmt']) if position else 0
-        is_long = position_amount > 0 if position else None
+        is_long = position_amount > 0
         signal = signal.upper()
+        logging.info(f"Current position for {symbol}: {position_amount} (is_long: {is_long}), signal: {signal}")
 
         # Direct BUY/SELL orders
         if signal in ['BUY', 'SELL']:
@@ -174,6 +175,7 @@ def check_and_request_order(symbol: str, signal: str) -> None:
 
         # Reverse position
         if signal == 'REVERSE':
+            logging.info(f"Reversing {symbol} position")
             side = 'SELL' if is_long else 'BUY'
             scale = 2 if position else 1
             request_order_on_binance(symbol, side, scale)
@@ -193,6 +195,7 @@ def place_trade(symbol, to_position, from_position):
         symbol=symbol, leverage=20, recvWindow=6000
     )
     signal = get_signal(to_position, from_position)
+    logging.info(f"Signal: {signal}")
     check_and_request_order(symbol, signal)
 
 def get_signal(to_position, from_position):
