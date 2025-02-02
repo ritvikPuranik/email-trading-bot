@@ -14,6 +14,8 @@ load_dotenv()
 
 config_logging(logging, logging.INFO)
 
+from retry import retry_on_failure
+
 # HMAC authentication with API key and secret
 KEY = os.getenv('TESTNET_API_KEY')
 SECRET = os.getenv('TESTNET_API_SECRET')
@@ -59,29 +61,8 @@ def parse_email_content(body):
     to_position = words[words.index("to") + 1].upper()
     from_position = words[words.index("from") + 1].upper()
 
-    # from_postiion ->LONG/SHORT -> prereq-> should have open to_position
-    # from_pos -> netural ->prereq -> should NOT have open position
-    #from logn-SHORT or vice vers -> if no open position, open a new position with scale 1
-
-    if to_position == "NEUTRAL":
-        side = "CLOSE"
-        scale = 1
-    elif to_position == "SHORT" and from_position == "NEUTRAL":
-        side = "SELL"
-        scale = 1
-    elif to_position == "LONG" and from_position == "NEUTRAL":
-        side = "BUY"
-        scale = 1
-    elif to_position == "SHORT" and from_position == "LONG":
-        side = "SELL"
-        scale = 2
-    elif to_position == "LONG" and from_position == "SHORT":
-        side = "BUY"
-        scale = 2
-    else:
-        side = None
-    logging.info(f"---------------- After parsing Symbol: {symbol}, Side: {side}")
-    return symbol, side, scale
+    logging.info(f"---------------- After parsing Symbol: {symbol}, From : {from_position}, To : {to_position}")
+    return symbol, to_position, from_position
 
 def fetch_latest_email(history_id=None):
     logging.info("Fetching latest email")
@@ -141,35 +122,91 @@ def fetch_latest_email(history_id=None):
 
     return None, None
 
-def create_futures_order(symbol, side, scale):
+def request_order_on_binance(symbol, signal, scale):
     try:
         logging.info(f"Creating {side.lower()} order for {symbol}, scale: {scale}")
         response = hmac_client.new_order(
             symbol=symbol,
-            side=side.upper(),
+            side=signal.upper(),
             type='MARKET',
             quantity=QUANTITY * scale,
         )
-        logging.info(f"{side.capitalize()} order created: {response}")
+        logging.info(f"{signal.capitalize()} order created: {response}")
     except ClientError as e:
-        logging.error(f"Error creating {side.lower()} order: {e.error_message}")
+        logging.error(f"Error creating {signal.lower()} order: {e.error_message}")
 
 
-def place_trade(symbol, side, scale):
+@retry_on_failure(max_attempts=3, delay=5.0)
+def check_and_request_order(symbol: str, signal: str) -> None:
+    """
+    Check positions and create appropriate orders based on signal.
+    
+    Args:
+        symbol: Trading pair symbol (e.g., 'BTCUSDT')
+        signal: Trading signal ('BUY', 'SELL', 'CLOSE', 'REVERSE')
+    """
+    try:
+        # Get current position
+        positions = hmac_client.get_position_risk(symbol=symbol)
+        position = next((pos for pos in positions if float(pos['positionAmt']) != 0), None)
+        
+        # If no position found and signal is CLOSE or REVERSE, nothing to do
+        if not position and signal.upper() in ['CLOSE']:
+            logging.info(f"No open position for {symbol} to {signal.lower()}")
+            return
+
+        position_amount = float(position['positionAmt']) if position else 0
+        is_long = position_amount > 0 if position else None
+        signal = signal.upper()
+
+        # Direct BUY/SELL orders
+        if signal in ['BUY', 'SELL']:
+            request_order_on_binance(symbol, signal, 1)
+            logging.info(f"Created new {symbol} position: {signal}")
+            return
+
+        # Close position
+        if signal == 'CLOSE':
+            side = 'SELL' if is_long else 'BUY'
+            request_order_on_binance(symbol, side, 1)
+            logging.info(f"Closed {symbol} position with {side}")
+            return
+
+        # Reverse position
+        if signal == 'REVERSE':
+            side = 'SELL' if is_long else 'BUY'
+            scale = 2 if position else 1
+            request_order_on_binance(symbol, side, scale)
+            logging.info(f"Reversed {symbol} position with {side} (scale: {scale})")
+            return
+
+        logging.error(f"Invalid signal received: {signal}")
+                
+    except ClientError as e:
+        logging.error(f"Binance API error for {symbol}: {e.error_message}")
+    except Exception as e:
+        logging.error(f"Unexpected error for {symbol}: {str(e)}")
+
+def place_trade(symbol, to_position, from_position):
     # Change leverage
     hmac_client.change_leverage(
         symbol=symbol, leverage=20, recvWindow=6000
     )
+    signal = get_signal(to_position, from_position)
+    check_and_request_order(symbol, signal)
 
-    if side.upper() == 'CLOSE':
-        try:
-            positions = hmac_client.get_position_risk(symbol=symbol)
-            for position in positions:
-                if float(position['positionAmt']) != 0:
-                    close_side = 'SELL' if float(position['positionAmt']) > 0 else 'BUY'
-                    create_futures_order(symbol, close_side, scale)
-                    logging.info(f"Closed position for {symbol} with {close_side} order.")
-        except ClientError as e:
-            logging.error(f"Error closing position for {symbol}: {e.error_message}")
-    else: # For BUY or SELL orders, execute directly
-        create_futures_order(symbol, side, scale)
+def get_signal(to_position, from_position):
+    if to_position == "NEUTRAL":
+        signal = "CLOSE"
+    elif to_position == "SHORT" and from_position == "NEUTRAL":
+        signal = "SELL"
+    elif to_position == "LONG" and from_position == "NEUTRAL":
+        signal = "BUY"
+    elif to_position == "SHORT" and from_position == "LONG":
+        signal = "REVERSE"
+    elif to_position == "LONG" and from_position == "SHORT":
+        signal = "REVERSE"
+    else:
+        signal = None
+    
+    return signal
