@@ -1,7 +1,12 @@
 import time
+import os
 from imbox import Imbox
 import logging
 import requests
+from dotenv import load_dotenv
+import ssl
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -36,13 +41,18 @@ def monitor_emails(
     """
     logger.info(f"Starting email monitor for messages from: {sender}")
     
+    # Create unverified SSL context
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
     while True:
         try:
             with Imbox('imap.gmail.com',
                     username=username,
                     password=password,
                     ssl=True,
-                    ssl_context=None,
+                    ssl_context=ssl_context,  # Use the custom SSL context
                     starttls=False) as imbox:
                 
                 # Check for new messages
@@ -71,7 +81,7 @@ def monitor_emails(
 if __name__ == "__main__":
     # Email credentials and settings
     USERNAME = "cryptotradrrs@gmail.com"
-    PASSWORD = "" #Add the APP PASSWORD
+    PASSWORD = os.getenv("APP_PASSWORD")
     SENDER = "trend-alert@mangoresearch.co"
     CHECK_INTERVAL = 5  # seconds
     

@@ -146,7 +146,7 @@ def calculate_quantity(symbol: str, usdt_amount: float) -> float:
 
 def request_order_on_binance(symbol, signal, scale):
     try:
-        USDT_QUANTITY = float(os.getenv('USDT_QUANTITY', '2000.0'))  # Default 2000 USDT
+        USDT_QUANTITY = float(os.getenv('USDT_QUANTITY', '3000.0'))
         response = hmac_client.new_order(
             symbol=symbol,
             side=signal.upper(),
