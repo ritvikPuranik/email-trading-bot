@@ -26,7 +26,6 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
 # Flask app setup
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY")
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 CREDENTIALS_FILE = "credentials.json"

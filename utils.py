@@ -178,8 +178,9 @@ def check_and_request_order(symbol: str, signal: str, to_position: str, from_pos
             return
 
         position_amount = float(position['positionAmt']) if position else 0
-        is_long = position_amount > 0 if position else None
+        is_long = position_amount > 0
         signal = signal.upper()
+        logging.info(f"Current position for {symbol}: {position_amount} (is_long: {is_long}), signal: {signal}")
 
         # Direct BUY/SELL orders
         if signal in ['BUY', 'SELL']:
