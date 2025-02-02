@@ -122,14 +122,36 @@ def fetch_latest_email(history_id=None):
 
     return None, None
 
+def calculate_quantity(symbol: str, usdt_amount: float) -> float:
+    """
+    Calculate the quantity based on USDT amount and current market price.
+    
+    Args:
+        symbol: Trading pair (e.g., 'BTCUSDT')
+        usdt_amount: Amount in USDT to trade
+    Returns:
+        float: Quantity in base asset
+    """
+    try:
+        # Get mark price
+        mark_price = float(hmac_client.mark_price(symbol=symbol)['markPrice'])
+        
+        # Calculate quantity (round down to avoid precision errors)
+        quantity = round(usdt_amount / mark_price, 3)  # Adjust decimals based on asset
+        
+        return quantity
+    except Exception as e:
+        logging.error(f"Error calculating quantity for {symbol}: {str(e)}")
+        raise
+
 def request_order_on_binance(symbol, signal, scale):
     try:
-        # logging.info(f"Creating {side.lower()} order for {symbol}, scale: {scale}")
+        USDT_QUANTITY = float(os.getenv('USDT_QUANTITY', '2000.0'))  # Default 2000 USDT
         response = hmac_client.new_order(
             symbol=symbol,
             side=signal.upper(),
             type='MARKET',
-            quantity=QUANTITY * scale,
+            quantity=calculate_quantity(symbol, USDT_QUANTITY * scale),
         )
         logging.info(f"{signal.capitalize()} order created: {response}")
     except ClientError as e:
@@ -137,7 +159,7 @@ def request_order_on_binance(symbol, signal, scale):
 
 
 @retry_on_failure(max_attempts=3, delay=5.0)
-def check_and_request_order(symbol: str, signal: str) -> None:
+def check_and_request_order(symbol: str, signal: str, to_position: str, from_position: str) -> None:
     """
     Check positions and create appropriate orders based on signal.
     
@@ -175,8 +197,18 @@ def check_and_request_order(symbol: str, signal: str) -> None:
 
         # Reverse position
         if signal == 'REVERSE':
-            logging.info(f"Reversing {symbol} position")
+            logging.info(f"is_long: {is_long}")
+            logging.info(f"position: {position}")
             side = 'SELL' if is_long else 'BUY'
+
+            if position is None:
+                if to_position == 'LONG':
+                    side = 'BUY'
+                else:
+                    side = 'SELL'
+            else:
+                side = 'SELL' if is_long and position else 'BUY'
+            
             scale = 2 if position else 1
             request_order_on_binance(symbol, side, scale)
             logging.info(f"Reversed {symbol} position with {side} (scale: {scale})")
@@ -190,15 +222,16 @@ def check_and_request_order(symbol: str, signal: str) -> None:
         logging.error(f"Unexpected error for {symbol}: {str(e)}")
 
 def place_trade(symbol, to_position, from_position):
-    # Change leverage
-    hmac_client.change_leverage(
-        symbol=symbol, leverage=20, recvWindow=6000
-    )
+    #set_margin_type(symbol, 'CROSS')
+    set_leverage(symbol, 20)
     signal = get_signal(to_position, from_position)
-    logging.info(f"Signal: {signal}")
-    check_and_request_order(symbol, signal)
+    check_and_request_order(symbol, signal, to_position, from_position)
 
 def get_signal(to_position, from_position):
+    """
+    Get the trading signal based on the current and previous positions.
+    """
+
     if to_position == "NEUTRAL":
         signal = "CLOSE"
     elif to_position == "SHORT" and from_position == "NEUTRAL":
@@ -212,4 +245,61 @@ def get_signal(to_position, from_position):
     else:
         signal = None
     
+    logging.info(f"Signal: {signal}")
     return signal
+
+def set_margin_type(symbol: str, margin_type: str = 'ISOLATED') -> None:
+    """
+    Set margin type for a symbol.
+    
+    Args:
+        symbol: Trading pair (e.g., 'BTCUSDT')
+        margin_type: 'ISOLATED' or 'CROSS'
+    """
+    try:
+        response = hmac_client.change_margin_type(
+            symbol=symbol,
+            marginType=margin_type.upper()
+        )
+        logging.info(f"Changed margin type for {symbol} to {margin_type}")
+        return response
+    except ClientError as e:
+        # Ignore error if margin type is already set
+        if "No need to change margin type" in str(e):
+            logging.info(f"Margin type already set to {margin_type} for {symbol}")
+            return
+        raise
+
+def set_leverage(symbol: str, leverage: int = 20) -> None:
+    """
+    Set leverage for a symbol with error handling.
+    
+    Args:
+        symbol: Trading pair (e.g., 'BTCUSDT')
+        leverage: Leverage value (1-125 depending on symbol)
+    """
+    try:
+        response = hmac_client.change_leverage(
+            symbol=symbol,
+            leverage=leverage,
+            recvWindow=6000
+        )
+        logging.info(f"Changed leverage for {symbol} to {leverage}x")
+        return response
+        
+    except ClientError as e:
+        # Handle specific leverage errors
+        if "Leverage is too large" in str(e):
+            set_leverage(symbol, 10) ## TODO: Handle this better
+            logging.error(f"Leverage {leverage}x is too high for {symbol}")
+            raise
+        elif "No need to change leverage" in str(e):
+            logging.info(f"Leverage already set to {leverage}x for {symbol}")
+            return
+        else:
+            logging.error(f"Error setting leverage for {symbol}: {str(e)}")
+            raise
+            
+    except Exception as e:
+        logging.error(f"Unexpected error setting leverage for {symbol}: {str(e)}")
+        raise
