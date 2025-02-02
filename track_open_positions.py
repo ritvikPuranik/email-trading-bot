@@ -38,22 +38,23 @@ def check_positions():
             if position_amt > 0:  # Long position
                 if current_price >= entry_price * (1 + TAKE_PROFIT):
                     logging.info(f"Take profit reached for {symbol}. Closing long position.")
-                    create_futures_order(symbol, 'SELL')
+                    create_futures_order(symbol, 'SELL', 1)
                 elif current_price <= entry_price * (1 - STOP_LOSS):
                     logging.info(f"Stop loss reached for {symbol}. Closing long position.")
-                    create_futures_order(symbol, 'SELL')
+                    create_futures_order(symbol, 'SELL', 1)
             elif position_amt < 0:  # Short position
                 if current_price <= entry_price * (1 - TAKE_PROFIT):
                     logging.info(f"Take profit reached for {symbol}. Closing short position.")
-                    create_futures_order(symbol, 'BUY')
+                    create_futures_order(symbol, 'BUY', 1)
                 elif current_price >= entry_price * (1 + STOP_LOSS):
                     logging.info(f"Stop loss reached for {symbol}. Closing short position.")
-                    create_futures_order(symbol, 'BUY')
+                    create_futures_order(symbol, 'BUY', 1)
     except ClientError as e:
         logging.error(f"Error fetching positions: {e.error_message}")
 
 def __main():
-    while True:
+    while False:
+        ## Will do this later
         check_positions()
         time.sleep(POLLING_INTERVAL)  # Check periodically
 

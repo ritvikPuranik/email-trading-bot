@@ -56,18 +56,28 @@ def save_processed_id(msg_id):
 def parse_email_content(body):
     words = body.split()
     symbol = words[0]
-    side_word = words[words.index("to") + 1].upper()
-    
-    if side_word == "NEUTRAL":
+    to_position = words[words.index("to") + 1].upper()
+    from_position = words[words.index("from") + 1].upper()
+
+    if to_position == "NEUTRAL":
         side = "CLOSE"
-    elif side_word == "SHORT":
+        scale = 1
+    elif to_position == "SHORT" and from_position == "NEUTRAL":
         side = "SELL"
-    elif side_word == "LONG":
+        scale = 1
+    elif to_position == "LONG" and from_position == "NEUTRAL":
         side = "BUY"
+        scale = 1
+    elif to_position == "SHORT" and from_position == "LONG":
+        side = "BUY"
+        scale = 2
+    elif to_position == "LONG" and from_position == "SHORT":
+        side = "SELL"
+        scale = 2
     else:
         side = None
     logging.info(f"---------------- After parsing Symbol: {symbol}, Side: {side}")
-    return symbol, side
+    return symbol, side, scale
 
 def fetch_latest_email(history_id=None):
     logging.info("Fetching latest email")
@@ -127,20 +137,20 @@ def fetch_latest_email(history_id=None):
 
     return None, None
 
-def create_futures_order(symbol, side):
+def create_futures_order(symbol, side, scale):
     try:
         response = hmac_client.new_order(
             symbol=symbol,
             side=side.upper(),
             type='MARKET',
-            quantity=QUANTITY,
+            quantity=QUANTITY * scale,
         )
         logging.info(f"{side.capitalize()} order created: {response}")
     except ClientError as e:
         logging.error(f"Error creating {side.lower()} order: {e.error_message}")
 
 
-def place_trade(symbol, side):
+def place_trade(symbol, side, scale):
     # Change leverage
     hmac_client.change_leverage(
         symbol=symbol, leverage=20, recvWindow=6000
@@ -152,9 +162,9 @@ def place_trade(symbol, side):
             for position in positions:
                 if float(position['positionAmt']) != 0:
                     close_side = 'SELL' if float(position['positionAmt']) > 0 else 'BUY'
-                    create_futures_order(symbol, close_side)
+                    create_futures_order(symbol, close_side, scale)
                     logging.info(f"Closed position for {symbol} with {close_side} order.")
         except ClientError as e:
             logging.error(f"Error closing position for {symbol}: {e.error_message}")
     else: # For BUY or SELL orders, execute directly
-        create_futures_order(symbol, side)
+        create_futures_order(symbol, side, scale)
