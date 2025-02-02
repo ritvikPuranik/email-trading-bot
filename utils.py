@@ -55,9 +55,13 @@ def save_processed_id(msg_id):
 
 def parse_email_content(body):
     words = body.split()
-    symbol = words[0]
+    symbol = words[1]
     to_position = words[words.index("to") + 1].upper()
     from_position = words[words.index("from") + 1].upper()
+
+    # from_postiion ->LONG/SHORT -> prereq-> should have open to_position
+    # from_pos -> netural ->prereq -> should NOT have open position
+    #from logn-SHORT or vice vers -> if no open position, open a new position with scale 1
 
     if to_position == "NEUTRAL":
         side = "CLOSE"
@@ -69,10 +73,10 @@ def parse_email_content(body):
         side = "BUY"
         scale = 1
     elif to_position == "SHORT" and from_position == "LONG":
-        side = "BUY"
+        side = "SELL"
         scale = 2
     elif to_position == "LONG" and from_position == "SHORT":
-        side = "SELL"
+        side = "BUY"
         scale = 2
     else:
         side = None
@@ -139,6 +143,7 @@ def fetch_latest_email(history_id=None):
 
 def create_futures_order(symbol, side, scale):
     try:
+        logging.info(f"Creating {side.lower()} order for {symbol}, scale: {scale}")
         response = hmac_client.new_order(
             symbol=symbol,
             side=side.upper(),
