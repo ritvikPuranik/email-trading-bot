@@ -11,7 +11,7 @@ from binance.lib.utils import config_logging
 from binance.error import ClientError
 from dotenv import load_dotenv
 
-from utils import create_futures_order
+from utils import request_order_on_binance
 load_dotenv()
 
 config_logging(logging, logging.INFO)
@@ -38,17 +38,17 @@ def check_positions():
             if position_amt > 0:  # Long position
                 if current_price >= entry_price * (1 + TAKE_PROFIT):
                     logging.info(f"Take profit reached for {symbol}. Closing long position.")
-                    create_futures_order(symbol, 'SELL', 1)
+                    request_order_on_binance(symbol, 'SELL', 1)
                 elif current_price <= entry_price * (1 - STOP_LOSS):
                     logging.info(f"Stop loss reached for {symbol}. Closing long position.")
-                    create_futures_order(symbol, 'SELL', 1)
+                    request_order_on_binance(symbol, 'SELL', 1)
             elif position_amt < 0:  # Short position
                 if current_price <= entry_price * (1 - TAKE_PROFIT):
                     logging.info(f"Take profit reached for {symbol}. Closing short position.")
-                    create_futures_order(symbol, 'BUY', 1)
+                    request_order_on_binance(symbol, 'BUY', 1)
                 elif current_price >= entry_price * (1 + STOP_LOSS):
                     logging.info(f"Stop loss reached for {symbol}. Closing short position.")
-                    create_futures_order(symbol, 'BUY', 1)
+                    request_order_on_binance(symbol, 'BUY', 1)
     except ClientError as e:
         logging.error(f"Error fetching positions: {e.error_message}")
 

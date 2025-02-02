@@ -93,10 +93,10 @@ def gmail_webhook():
     if history_id:
         _, body = fetch_latest_email(history_id)
         if body:
-            symbol, side, scale = parse_email_content(body)
+            symbol, to_position, from_position = parse_email_content(body)
 
-            if symbol and side:
-                place_trade(symbol, side, scale)
+            if symbol and to_position and from_position:
+                place_trade(symbol, to_position, from_position)
 
     # Acknowledge the subscription
     return json.dumps({"status": "success"}), 201  # Acknowledge receipt
