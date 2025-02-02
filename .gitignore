@@ -1,5 +1,4 @@
 .env
-credentials.json
 token.pkl
 processed_ids.pkl
 __pycache__/
