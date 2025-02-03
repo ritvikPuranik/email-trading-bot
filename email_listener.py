@@ -47,7 +47,6 @@ def monitor_emails(
     username: str,
     password: str,
     senders: list[str],
-    interval: int = 5,
     subject: str = 'Mango Research Alerts'
 ) -> None:
     """
@@ -105,12 +104,10 @@ if __name__ == "__main__":
     USERNAME = os.getenv("EMAIL_USERNAME")
     PASSWORD = os.getenv("APP_PASSWORD")
     SENDERS = os.getenv("EMAIL_SENDERS").split(",")
-    CHECK_INTERVAL = int(os.getenv("POLLING_INTERVAL"))
     
     # Start monitoring
     monitor_emails(
         username=USERNAME,
         password=PASSWORD,
         senders=SENDERS,
-        interval=CHECK_INTERVAL
     )
