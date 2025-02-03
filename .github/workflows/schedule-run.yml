@@ -1,8 +1,8 @@
 name: Run Python Script
-on: 
-  push:
-  schedule:
-    - cron: '*/1 * * * *'
+
+on:  
+  push:  # Triggers on push
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   run-script:
@@ -18,13 +18,22 @@ jobs:
       TESTNET_API_SECRET: ${{ secrets.TESTNET_API_SECRET }}
       EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
       EMAIL_SENDERS: ${{ secrets.EMAIL_SENDERS }}
+      
     steps:
       - uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
           python-version: '3.x'
+
       - name: Install dependencies
         run: pip3 install -r requirements.txt
-      - name: Run script
-        run: python3 email_listener.py
+
+      - name: Run script continuously
+        run: |
+          while true; do
+            echo "Running script at $(date)"
+            python3 email_listener.py
+            sleep 90
+          done
