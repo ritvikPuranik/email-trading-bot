@@ -1,0 +1,19 @@
+name: Run Python Script
+on: 
+  push:
+  schedule:
+    - cron: '*/1 * * * *'
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip3 install -r requirements.txt
+      - name: Run script
+        run: python3 email_listener.py
