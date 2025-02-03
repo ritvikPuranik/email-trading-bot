@@ -26,23 +26,37 @@ def parse_email_content(body):
     logging.info(f"---------------- After parsing Symbol: {symbol}, From : {from_position}, To : {to_position}")
     return symbol, to_position, from_position
 
+def get_symbol_info(symbol: str) -> dict:
+    """
+    Get symbol information including precision requirements.
+    """
+    try:
+        exchange_info = hmac_client.exchange_info()
+        symbol_info = next((s for s in exchange_info['symbols'] if s['symbol'] == symbol), None)
+        if not symbol_info:
+            raise ValueError(f"Symbol {symbol} not found")
+        return symbol_info
+    except Exception as e:
+        logging.error(f"Error getting symbol info for {symbol}: {str(e)}")
+        raise
 
 def calculate_quantity(symbol: str, usdt_amount: float) -> float:
     """
     Calculate the quantity based on USDT amount and current market price.
-    
-    Args:
-        symbol: Trading pair (e.g., 'BTCUSDT')
-        usdt_amount: Amount in USDT to trade
-    Returns:
-        float: Quantity in base asset
     """
     try:
         # Get mark price
         mark_price = float(hmac_client.mark_price(symbol=symbol)['markPrice'])
         
-        # Calculate quantity (round down to avoid precision errors)
-        quantity = round(usdt_amount / mark_price, 3)  # Adjust decimals based on asset
+        # Get symbol precision
+        symbol_info = get_symbol_info(symbol)
+        lot_size_filter = next(filter(lambda x: x['filterType'] == 'LOT_SIZE', symbol_info['filters']))
+        step_size = lot_size_filter['stepSize']
+        quantity_precision = len(str(float(step_size)).rstrip('0').split('.')[-1])
+        
+        # Calculate quantity with correct precision
+        quantity = usdt_amount / mark_price
+        quantity = round(quantity, quantity_precision)
         
         return quantity
     except Exception as e:
@@ -52,11 +66,13 @@ def calculate_quantity(symbol: str, usdt_amount: float) -> float:
 def request_order_on_binance(symbol, signal, scale):
     try:
         USDT_QUANTITY = float(os.getenv('USDT_QUANTITY', '3000.0'))
+        quantity = calculate_quantity(symbol, USDT_QUANTITY * scale)
+        
         response = hmac_client.new_order(
             symbol=symbol,
             side=signal.upper(),
             type='MARKET',
-            quantity=calculate_quantity(symbol, USDT_QUANTITY * scale),
+            quantity=quantity
         )
         logging.info(f"{signal.capitalize()} order created: {response}")
     except ClientError as e:

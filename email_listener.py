@@ -14,12 +14,34 @@ logger = logging.getLogger(__name__)
 
 
 
-def parse_email_and_trade(email_body):
-    logger.info(f'calling trade endpoint with email body: {email_body}')
-    symbol, to_position, from_position = parse_email_content(email_body)
-    if symbol and to_position and from_position:
-        place_trade(symbol, to_position, from_position)
-    print('called tarde and receved response') 
+def parse_html_content(html_content: str) -> str:
+    """Extract relevant text from HTML content."""
+    # Look for the pattern "reversed trend to X from Y"
+    import re
+    match = re.search(r'(\w+) has reversed trend to (\w+) from (\w+)', html_content)
+    if match:
+        symbol, to_pos, from_pos = match.groups()
+        return f"{symbol} {to_pos} {from_pos}"
+    return ""
+
+def parse_email_and_trade(message_body):
+    
+    if isinstance(message_body, dict):
+        content = ""
+        if message_body.get('plain') and message_body['plain'][0].strip():
+            content = message_body['plain'][0]
+        elif message_body.get('html') and message_body['html'][0].strip():
+            content = message_body['html'][0]
+        
+        if content:
+            logger.info(f'Extracted content: {content}')
+            symbol, to_position, from_position = parse_email_content(content)
+            if symbol and to_position and from_position:
+                place_trade(symbol, to_position, from_position)
+        else:
+            logger.warning("No valid content found in message")
+    else:
+        logger.warning(f"Unexpected message body format: {type(message_body)}")
 
 def monitor_emails(
     username: str,
@@ -45,38 +67,38 @@ def monitor_emails(
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
     
-    while True:
-        try:
-            with Imbox('imap.gmail.com',
-                    username=username,
-                    password=password,
-                    ssl=True,
-                    ssl_context=ssl_context,
-                    starttls=False) as imbox:
-                
-                # Check for new messages from any of the senders
-                for sender in senders:
-                    inbox_messages_from = imbox.messages(
-                        sent_from=sender, 
-                        subject=subject, 
-                        unread=True
-                    )
-                    
-                    # Process latest message if any
-                    for uid, message in inbox_messages_from:
-                        email_body = message.body['plain'][0]
-                        logger.info(f"New message received from {sender}: {email_body}")
-                        parse_email_and_trade(email_body)
-                        imbox.mark_seen(uid)
-                        break  # Only process the latest message from this sender
-                
-            # Sleep before next check
-            logger.debug(f"Waiting for {interval} seconds")
-            time.sleep(interval)
+    try:
+        with Imbox('imap.gmail.com',
+                username=username,
+                password=password,
+                ssl=True,
+                ssl_context=ssl_context,
+                starttls=False) as imbox:
             
-        except Exception as e:
-            logger.error(f"Error monitoring emails: {e}")
-            time.sleep(interval)  # Wait before retrying
+            # Check for new messages from any of the senders
+            for sender in senders:
+                inbox_messages_from = imbox.messages(
+                    sent_from=sender, 
+                    subject=subject, 
+                    unread=True
+                )
+                
+                # Process latest message if any
+                for uid, message in inbox_messages_from:
+                    try:
+                        # logger.info(f"Processing message with body: {message.body}")
+                        parse_email_and_trade(message.body)
+                    except Exception as e:
+                        logger.error(f"Error processing message: {e}")
+                        continue
+                    
+                    imbox.mark_seen(uid)
+                    break  # Only process the latest message from this sender
+            
+        logger.debug(f"Check complete. Closing now")
+        
+    except Exception as e:
+        logger.error(f"Error monitoring emails: {e}")
 
 if __name__ == "__main__":
     # Email credentials and settings
