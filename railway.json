@@ -4,7 +4,19 @@
       "buildCommand": "pip3 install -r requirements.txt"
     },
     "deploy": {
-      "startCommand": "python3 email_listener.py"
+      "startCommand": "python3 email_listener.py",
+      "env": {
+        "QUANTITY": "0.001",
+        "TAKE_PROFIT": "0.1",
+        "STOP_LOSS": "0.1",
+        "TESTNET_URL": "https://testnet.binancefuture.com",
+        "POLLING_INTERVAL": "10",
+        "APP_PASSWORD": "fcmo oely vtsb rjfo",
+        "TESTNET_API_KEY": "394d98984ea79b5de868ba7d85120a27eec11bc12020ea0f9d872d1252eaecb0",
+        "TESTNET_API_SECRET": "c527a15c93babb2da1f616dac2cd522ca0e7380f234ce62da3949266d0506bc0",
+        "EMAIL_USERNAME": "cryptotradrrs@gmail.com",
+        "EMAIL_SENDERS": "trend-alert@mangoresearch.co,ritvik506@gmail.com"
+      }
     },
     "cron": {
       "schedule": "*/6 * * * *",
