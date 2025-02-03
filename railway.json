@@ -1,0 +1,13 @@
+{
+    "build": {
+      "builder": "NIXPACKS",
+      "buildCommand": "pip3 install -r requirements.txt"
+    },
+    "deploy": {
+      "startCommand": "python3 email_listener.py"
+    },
+    "cron": {
+      "schedule": "*/6 * * * *",
+      "command": "python3 email_listener.py"
+    }
+  }
